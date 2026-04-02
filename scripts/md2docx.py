@@ -101,7 +101,7 @@ def set_page_setup(doc):
 
 def apply_paragraph_style(para, font_name, font_size, bold=False,
                           align='left', indent=0, line_spacing=LINE_SPACING,
-                          space_before=0, space_after=0):
+                          space_before=0, space_after=0, override_bold=True):
     """应用统一的段落样式"""
     # 设置段落对齐
     align_map = {
@@ -127,7 +127,8 @@ def apply_paragraph_style(para, font_name, font_size, bold=False,
     for run in para.runs:
         run.font.name = font_name
         run.font.size = Pt(font_size)
-        run.font.bold = bold
+        if override_bold:
+            run.font.bold = bold
         # 中文字体
         run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
     
@@ -150,6 +151,12 @@ def parse_markdown(content):
     返回: [(level, text, ptype), ...]
     level: 0=标题, 1-4=正文层次, None=正文
     ptype: title, heading1, heading2, heading3, heading4, body
+    
+    标题识别优先级：内容前缀 > Markdown标记
+    - 一、 或 一级标题 → heading1
+    - （一）或 二级标题 → heading2
+    - 1. 或 三级标题 → heading3
+    - （1）或 四级标题 → heading4
     """
     lines = content.split('\n')
     result = []
@@ -162,100 +169,105 @@ def parse_markdown(content):
         # 主标题 (# 标题)
         if stripped.startswith('# ') and len(stripped) > 2:
             result.append((0, stripped[2:].strip(), 'title'))
-        # 二级标题 (##)
-        elif stripped.startswith('## ') and not stripped.startswith('### '):
-            text = stripped[3:].strip()
-            # 检查标题前缀
-            if re.match(r'^[一二三四五六七八九十]+、', text):
-                result.append((1, text, 'heading1'))
-            elif re.match(r'^（[一二三四五六七八九十]+）', text) or re.match(r'^\([一二三四五六七八九十]+\)', text):
-                result.append((2, text, 'heading2'))
-            elif re.match(r'^\d+\.', text):
-                result.append((3, text, 'heading3'))
-            elif re.match(r'^（\d+）', text) or re.match(r'^\(\d+\)', text):
-                result.append((4, text, 'heading4'))
-            else:
-                result.append((1, text, 'heading1'))
-        # 三级标题 (###)
-        elif stripped.startswith('### '):
-            text = stripped[4:].strip()
-            if re.match(r'^（[一二三四五六七八九十]+）', text):
-                result.append((2, text, 'heading2'))
-            elif re.match(r'^\d+\.', text):
-                result.append((3, text, 'heading3'))
-            else:
-                result.append((None, text, 'body'))
-        # 四级标题 (####)
-        elif stripped.startswith('#### '):
-            text = stripped[5:].strip()
-            if re.match(r'^（\d+）', text):
-                result.append((4, text, 'heading4'))
-            else:
-                result.append((None, text, 'body'))
+            continue
+        
+        # 去除 Markdown 标题标记，获取纯文本
+        text = stripped
+        for prefix in ['#### ', '### ', '## ', '# ']:
+            if text.startswith(prefix):
+                text = text[len(prefix):].strip()
+                break
+        
+        # 根据内容前缀识别标题层级（优先级高于 Markdown 标记）
+        if re.match(r'^[一二三四五六七八九十]+、', text):
+            result.append((1, text, 'heading1'))
+        elif re.match(r'^（[一二三四五六七八九十]+）', text) or re.match(r'^\([一二三四五六七八九十]+\)', text):
+            result.append((2, text, 'heading2'))
+        elif re.match(r'^\d+\.', text):
+            result.append((3, text, 'heading3'))
+        elif re.match(r'^（\d+）', text) or re.match(r'^\(\d+\)', text):
+            result.append((4, text, 'heading4'))
         else:
-            # 普通文本，检查是否为一、二、三、四级标题
-            if re.match(r'^[一二三四五六七八九十]+、', stripped):
-                result.append((1, stripped, 'heading1'))
-            elif re.match(r'^（[一二三四五六七八九十]+）', stripped) or re.match(r'^\([一二三四五六七八九十]+\)', stripped):
-                result.append((2, stripped, 'heading2'))
-            elif re.match(r'^\d+\.', stripped):
-                result.append((3, stripped, 'heading3'))
-            elif re.match(r'^（\d+）', stripped) or re.match(r'^\(\d+\)', stripped):
-                result.append((4, stripped, 'heading4'))
-            else:
-                result.append((None, stripped, 'body'))
+            # 普通文本
+            result.append((None, stripped, 'body'))
     
     return result
+
+
+def add_runs_with_bold(para, text, font_name, font_size):
+    """
+    解析文本中的加粗语法 **xxxx** 并创建对应的 runs
+    """
+    # 匹配 **text** 格式
+    pattern = r'\*\*(.+?)\*\*'
+    parts = re.split(pattern, text)
+    
+    for i, part in enumerate(parts):
+        if not part:
+            continue
+        run = para.add_run(part)
+        run.font.name = font_name
+        run.font.size = Pt(font_size)
+        run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
+        # 奇数索引是加粗内容（被 ** 包裹的部分）
+        run.font.bold = (i % 2 == 1)
 
 
 def create_styled_paragraph(doc, text, ptype):
     """根据段落类型创建并格式化段落"""
     para = doc.add_paragraph()
-    run = para.add_run(text)
     
     if ptype == 'title':
         # 主标题：居中，方正小标宋简体，2号（22pt），不加粗
         font_name = get_font('title')
+        add_runs_with_bold(para, text, font_name, FONT_SIZES["title"])
         apply_paragraph_style(para, font_name, FONT_SIZES["title"],
                              bold=False, align='center',
                              indent=0, line_spacing=LINE_SPACING,
-                             space_before=0, space_after=0)
+                             space_before=0, space_after=0, override_bold=False)
     
     elif ptype == 'heading1':
         # 一级标题：一、黑体，3号（16pt），加粗，首行缩进2字符
         font_name = get_font('heading1')
+        add_runs_with_bold(para, text, font_name, FONT_SIZES["heading1"])
         apply_paragraph_style(para, font_name, FONT_SIZES["heading1"],
                              bold=True, align='left',
                              indent=CHAR_INDENT, line_spacing=LINE_SPACING,
-                             space_before=0, space_after=0)
+                             space_before=0, space_after=0, override_bold=False)
     
     elif ptype == 'heading2':
         # 二级标题：（一）楷体，3号（16pt），加粗，首行缩进2字符
         font_name = get_font('heading2')
+        add_runs_with_bold(para, text, font_name, FONT_SIZES["heading2"])
         apply_paragraph_style(para, font_name, FONT_SIZES["heading2"],
                              bold=True, align='left',
                              indent=CHAR_INDENT, line_spacing=LINE_SPACING,
-                             space_before=0, space_after=0)
+                             space_before=0, space_after=0, override_bold=False)
     
     elif ptype == 'heading3':
         # 三级标题：1. 仿宋，3号（16pt），加粗，首行缩进2字符
         font_name = get_font('body')
+        add_runs_with_bold(para, text, font_name, FONT_SIZES["heading3"])
         apply_paragraph_style(para, font_name, FONT_SIZES["heading3"],
                              bold=True, align='left',
                              indent=CHAR_INDENT, line_spacing=LINE_SPACING,
-                             space_before=0, space_after=0)
+                             space_before=0, space_after=0, override_bold=False)
     
     elif ptype == 'heading4':
         # 四级标题：（1）仿宋，3号（16pt），不加粗，首行缩进2字符
         font_name = get_font('body')
+        add_runs_with_bold(para, text, font_name, FONT_SIZES["heading4"])
         apply_paragraph_style(para, font_name, FONT_SIZES["heading4"],
                              bold=False, align='left',
                              indent=CHAR_INDENT, line_spacing=LINE_SPACING,
-                             space_before=0, space_after=0)
+                             space_before=0, space_after=0, override_bold=False)
     
     else:  # body
         # 正文：仿宋，3号（16pt），两端对齐，首行缩进2字符
+        # GB/T 9704-2012: 正文不允许加粗，去除 ** 符号
         font_name = get_font('body')
+        clean_text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+        para.add_run(clean_text)
         apply_paragraph_style(para, font_name, FONT_SIZES["body"],
                              bold=False, align='justify',
                              indent=CHAR_INDENT, line_spacing=LINE_SPACING,

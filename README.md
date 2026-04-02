@@ -1,11 +1,12 @@
 # md2gbt9704
 
-将 Markdown 文档按照 [GB/T 9704-2012（党政机关公文格式）](https://www.jinmaojiaoyu.cn/Content/upload/file/20190320/1553060914817305.pdf)标准转换为 DOCX 格式。
+将 Markdown 文档按照 [GB/T 9704-2012（党政机关公文格式）](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=F3CC9BEF482524C895FDA7A08BB4A70E)标准转换为 DOCX 格式。
 
 ## 功能
 
 - 按照党政机关公文格式标准生成 Word 文档
 - 自动识别 Markdown 标题层级并映射为公文标题格式
+- 支持标题中使用加粗语法 `**文本**`（正文不支持加粗）
 - 支持跨平台字体适配（Windows / macOS / Linux）
 - 自动生成符合标准的页码格式
 
@@ -116,6 +117,7 @@ python3 <skill_path>/scripts/md2docx.py input.md output.docx
 | `### （一）xxx` | 二级标题 | 楷体加粗，16pt |
 | `#### 1. xxx` | 三级标题 | 仿宋加粗，16pt |
 | `##### （1）xxx` | 四级标题 | 仿宋不加粗，16pt |
+| `**文本**` | 加粗文本 | 正文中忽略 |
 
 也支持不带 Markdown 标记的纯文本标题（如 `一、`、`（一）`、`1.`、`（1）`）。
 
@@ -143,7 +145,7 @@ python3 <skill_path>/scripts/md2docx.py input.md output.docx
 
 #### （1）信息系统升级
 
-加快现有信息系统的升级改造工作。
+加快现有信息系统的升级改造工作，确保数据安全。
 
 #### （2）数据治理
 
