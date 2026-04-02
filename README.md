@@ -6,7 +6,10 @@
 
 - 按照党政机关公文格式标准生成 Word 文档
 - 自动识别 Markdown 标题层级并映射为公文标题格式
-- 支持标题中使用加粗语法 `**文本**`（正文不支持加粗）
+- 支持 Markdown 表格转换（表头加粗，0.5磅边框）
+- 自动处理落款格式（单位名称和日期右对齐）
+- 自动去除 Markdown 列表标记（`*`、`+`、`-`）
+- 正文中不出现加粗（符合公文标准）
 - 支持跨平台字体适配（Windows / macOS / Linux）
 - 自动生成符合标准的页码格式
 
@@ -31,6 +34,9 @@
 | 三级标题（1.） | 仿宋 | 3号（16pt） | 是 | 左对齐 |
 | 四级标题（（1）） | 仿宋 | 3号（16pt） | 否 | 左对齐 |
 | 正文 | 仿宋 | 3号（16pt） | 否 | 两端对齐 |
+| 表头 | 仿宋 | 小四号（12pt） | 是 | 居中 |
+| 表格内容 | 仿宋 | 小四号（12pt） | 否 | 左对齐 |
+| 落款 | 仿宋 | 3号（16pt） | 否 | 右对齐 |
 | 页码 | Times New Roman | 4号（14pt） | 否 | 单右双左 |
 
 ## 安装
@@ -60,13 +66,19 @@ pip install python-docx
 ### 命令行
 
 ```bash
-python3 scripts/md2docx.py <输入文件.md> <输出文件.docx>
+python3 scripts/md2docx.py <输入文件.md> [输出文件.docx]
 ```
+
+如不指定输出文件，自动生成 `原文件名_format.docx`
 
 示例：
 
 ```bash
-python3 scripts/md2docx.py 公文.md 公文.docx
+# 自动生成 输出_format.docx
+python3 scripts/md2docx.py 公文.md
+
+# 指定输出文件名
+python3 scripts/md2docx.py 公文.md 公文_output.docx
 ```
 
 ### 作为智能体 Skill 使用
@@ -100,12 +112,6 @@ cp -r . ~/.config/opencode/skill/md2docx-gbt9704
 帮我把这份 Markdown 转换成符合党政机关公文格式的 Word 文档
 ```
 
-智能体会自动执行转换：
-
-```bash
-python3 <skill_path>/scripts/md2docx.py input.md output.docx
-```
-
 ## Markdown 写法
 
 ### 标题映射
@@ -113,13 +119,37 @@ python3 <skill_path>/scripts/md2docx.py input.md output.docx
 | Markdown 语法 | 识别为 | 格式 |
 |--------------|--------|------|
 | `# 标题` | 主标题 | 方正小标宋，22pt，居中 |
-| `## 一、xxx` | 一级标题 | 黑体加粗，16pt |
-| `### （一）xxx` | 二级标题 | 楷体加粗，16pt |
-| `#### 1. xxx` | 三级标题 | 仿宋加粗，16pt |
-| `##### （1）xxx` | 四级标题 | 仿宋不加粗，16pt |
-| `**文本**` | 加粗文本 | 正文中忽略 |
+| `一、xxx` | 一级标题 | 黑体加粗，16pt |
+| `（一）xxx` | 二级标题 | 楷体加粗，16pt |
+| `1. xxx` | 三级标题 | 仿宋加粗，16pt |
+| `（1）xxx` | 四级标题 | 仿宋不加粗，16pt |
+| `* 文本` | 列表项 | 去除标记，作为正文 |
+| `**文本**` | 加粗标记 | 正文中去除，标题中保留 |
 
-也支持不带 Markdown 标记的纯文本标题（如 `一、`、`（一）`、`1.`、`（1）`）。
+也支持带 Markdown 标记的标题（如 `## 一、`、`### （一）`）。
+
+### 表格格式
+
+```markdown
+| 列1 | 列2 | 列3 |
+|-----|-----|-----|
+| 数据1 | 数据2 | 数据3 |
+```
+
+- 表头：仿宋加粗，小四号（12pt）
+- 内容：仿宋不加粗，小四号（12pt）
+- 边框：0.5磅直线
+
+### 落款格式
+
+```markdown
+某某单位
+
+2026年1月3日
+```
+
+- 单位名称（以公司/局/委等结尾）：右对齐，正文下空两行
+- 日期（阿拉伯数字，年月日）：右对齐，单位名称下空一行
 
 ### 推荐模板
 
@@ -150,6 +180,17 @@ python3 <skill_path>/scripts/md2docx.py input.md output.docx
 #### （2）数据治理
 
 建立完善的数据治理体系，确保数据质量。
+
+## 三、保障措施
+
+| 措施 | 责任部门 | 完成时间 |
+|------|----------|----------|
+| 加强领导 | 办公室 | 1月 |
+| 落实资金 | 财务处 | 2月 |
+
+某某单位
+
+2026年1月3日
 ```
 
 ## 页码格式
@@ -169,6 +210,7 @@ python3 <skill_path>/scripts/md2docx.py input.md output.docx
 ## 致谢
 
 - [document-format-skills](https://github.com/KaguraNanaga/document-format-skills) - 参考了其公文格式转换实现
+- [minimax-docx](https://github.com/MiniMax-AI/skills/tree/main/skills/minimax-docx) - 参考了其 OpenXML 处理方式
 
 ## 许可证
 
