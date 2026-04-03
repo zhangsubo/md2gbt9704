@@ -460,77 +460,99 @@ def create_styled_paragraph(doc, text, ptype):
     return para
 
 
+def set_font(run, font_ascii, font_east_asia, size, bold=False):
+    """设置 run 的字体"""
+    run.font.name = font_ascii
+    run.font.size = Pt(size)
+    run.font.bold = bold
+    run._element.rPr.rFonts.set(qn('w:eastAsia'), font_east_asia)
+
+
 def add_page_numbers(doc):
     """
     添加页码（GB/T 9704-2012 标准）
-    - 4号半角宋体（Times New Roman）14pt
-    - 格式：— 页码 —（带边框线）
-    - 奇数页居右，偶数页居左
-    - 每页显示当前页码
+    - 四号宋体 14pt
+    - 格式：— 页码 —（一字线）
+    - 奇数页居右空一字，偶数页居左空一字
     """
     section = doc.sections[0]
     
-    # 启用奇偶页不同的页脚
-    section.different_first_page_header_footer = True
+    # 启用奇偶页页眉页脚（文档级）
+    try:
+        doc.settings.odd_and_even_pages_header_footer = True
+    except Exception:
+        settings_el = doc.settings._element
+        if settings_el.find(qn('w:evenAndOddHeaders')) is None:
+            settings_el.append(OxmlElement('w:evenAndOddHeaders'))
     
-    def create_page_number_para(footer, align):
-        """创建页码段落"""
-        footer.is_linked_to_previous = False
-        
+    section.odd_and_even_pages_header_footer = True
+    section.footer_distance = Cm(0.7)
+    
+    odd_footer = section.footer
+    even_footer = section.even_page_footer
+    odd_footer.is_linked_to_previous = False
+    even_footer.is_linked_to_previous = False
+    
+    for para in odd_footer.paragraphs:
+        para.clear()
+    for para in even_footer.paragraphs:
+        para.clear()
+    
+    def _build_footer_line(footer, align, pad_fullwidth):
+        """构建页脚行"""
         if footer.paragraphs:
-            footer.paragraphs[0].clear()
-            p = footer.paragraphs[0]
+            para = footer.paragraphs[0]
         else:
-            p = footer.add_paragraph()
+            para = footer.add_paragraph()
         
-        p.alignment = align
-        p.paragraph_format.space_before = Pt(0)
-        p.paragraph_format.space_after = Pt(0)
+        para.alignment = align
         
-        # 添加左破折号
-        run1 = p.add_run('— ')
-        run1.font.name = 'Times New Roman'
-        run1.font.size = Pt(14)
+        # 前导全角空格（空一字）
+        if pad_fullwidth:
+            run0 = para.add_run("　")
+            set_font(run0, 'Times New Roman', 'Times New Roman', 14, bold=False)
         
-        # 添加 PAGE 字段
-        run_page = p.add_run()
-        run_page.font.name = 'Times New Roman'
-        run_page.font.size = Pt(14)
+        # 左一字线（带空格）
+        run1 = para.add_run("— ")
+        set_font(run1, 'Times New Roman', 'Times New Roman', 14, bold=False)
         
-        # 构建 PAGE 字段的 XML
+        # 页码域
+        run2 = para.add_run()
+        set_font(run2, 'Times New Roman', 'Times New Roman', 14, bold=False)
         fldChar1 = OxmlElement('w:fldChar')
         fldChar1.set(qn('w:fldCharType'), 'begin')
+        run2._r.append(fldChar1)
         
+        run3 = para.add_run()
+        set_font(run3, 'Times New Roman', 'Times New Roman', 14, bold=False)
         instrText = OxmlElement('w:instrText')
-        instrText.set(qn('xml:space'), 'preserve')
-        instrText.text = ' PAGE '
+        instrText.text = 'PAGE'
+        run3._r.append(instrText)
         
+        run4 = para.add_run()
+        set_font(run4, 'Times New Roman', 'Times New Roman', 14, bold=False)
         fldChar2 = OxmlElement('w:fldChar')
         fldChar2.set(qn('w:fldCharType'), 'separate')
+        run4._r.append(fldChar2)
         
+        run5 = para.add_run()
+        set_font(run5, 'Times New Roman', 'Times New Roman', 14, bold=False)
         fldChar3 = OxmlElement('w:fldChar')
         fldChar3.set(qn('w:fldCharType'), 'end')
+        run5._r.append(fldChar3)
         
-        run_page._r.append(fldChar1)
-        run_page._r.append(instrText)
-        run_page._r.append(fldChar2)
-        run_page._r.append(fldChar3)
+        # 右一字线（带空格）
+        run6 = para.add_run(" —")
+        set_font(run6, 'Times New Roman', 'Times New Roman', 14, bold=False)
         
-        # 添加右破折号
-        run2 = p.add_run(' —')
-        run2.font.name = 'Times New Roman'
-        run2.font.size = Pt(14)
-        
-        return p
+        # 末尾全角空格（空一字）
+        if not pad_fullwidth:
+            run7 = para.add_run("　")
+            set_font(run7, 'Times New Roman', 'Times New Roman', 14, bold=False)
     
-    # 首页页脚（与奇数页相同）
-    create_page_number_para(section.first_page_footer, WD_ALIGN_PARAGRAPH.RIGHT)
-    
-    # 奇数页（右对齐）
-    create_page_number_para(section.footer, WD_ALIGN_PARAGRAPH.RIGHT)
-    
-    # 偶数页（左对齐）
-    create_page_number_para(section.even_page_footer, WD_ALIGN_PARAGRAPH.LEFT)
+    # 奇数页居右空一字，偶数页居左空一字
+    _build_footer_line(odd_footer, WD_ALIGN_PARAGRAPH.RIGHT, pad_fullwidth=True)
+    _build_footer_line(even_footer, WD_ALIGN_PARAGRAPH.LEFT, pad_fullwidth=False)
 
 
 def convert_markdown_to_docx(input_path, output_path):
