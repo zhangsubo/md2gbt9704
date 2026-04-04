@@ -18,7 +18,7 @@ from pathlib import Path
 
 try:
     from docx import Document
-    from docx.shared import Pt, Cm, Twips, Emu
+    from docx.shared import Pt, Cm, Twips, Emu, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
@@ -101,6 +101,36 @@ def set_page_setup(doc):
     section.right_margin = Cm(PAGE_MARGIN["right"])
 
 
+def set_font(run, font_cn, font_en, size, bold=False):
+    """设置字体，同时清除原有格式（斜体、下划线、颜色等）"""
+    run.font.name = font_en
+    run.font.size = Pt(size)
+    run.font.bold = bold
+    # 清除斜体
+    run.font.italic = False
+    # 清除下划线
+    run.font.underline = False
+    # 清除颜色（设置为黑色）
+    run.font.color.rgb = RGBColor(0, 0, 0)
+    # 清除删除线
+    run.font.strike = False
+    run.font.double_strike = False
+    # 清除上下标
+    run.font.subscript = False
+    run.font.superscript = False
+    # 设置中文字体
+    r = run._r
+    rPr = r.get_or_add_rPr()
+    rFonts = rPr.find(qn('w:rFonts'))
+    if rFonts is None:
+        rFonts = OxmlElement('w:rFonts')
+        rPr.insert(0, rFonts)
+    rFonts.set(qn('w:eastAsia'), font_cn)
+    rFonts.set(qn('w:ascii'), font_en)
+    rFonts.set(qn('w:hAnsi'), font_en)
+    rFonts.set(qn('w:cs'), font_en)
+
+
 def apply_paragraph_style(para, font_name, font_size, bold=False,
                           align='left', indent=0, line_spacing=LINE_SPACING,
                           space_before=0, space_after=0):
@@ -116,6 +146,9 @@ def apply_paragraph_style(para, font_name, font_size, bold=False,
     
     # 设置段落格式
     pf = para.paragraph_format
+    # 重置段落缩进（重要：确保"文本之前缩进"为0）
+    pf.left_indent = Pt(0)
+    pf.right_indent = Pt(0)
     pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
     pf.line_spacing = Pt(line_spacing)
     pf.space_before = Pt(space_before)
@@ -124,14 +157,12 @@ def apply_paragraph_style(para, font_name, font_size, bold=False,
     # 首行缩进
     if indent > 0:
         pf.first_line_indent = Pt(indent)
+    else:
+        pf.first_line_indent = Pt(0)
     
-    # 设置字体
+    # 设置字体（使用新的 set_font 函数清除原有格式）
     for run in para.runs:
-        run.font.name = font_name
-        run.font.size = Pt(font_size)
-        run.font.bold = bold
-        # 中文字体
-        run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
+        set_font(run, font_name, font_name, font_size, bold)
     
     return para
 
@@ -143,6 +174,9 @@ def add_empty_paragraph(doc):
     para.paragraph_format.line_spacing = Pt(LINE_SPACING)
     para.paragraph_format.space_before = Pt(0)
     para.paragraph_format.space_after = Pt(0)
+    # 添加空 run 并设置字体为仿宋（跨平台适配）
+    run = para.add_run('')
+    set_font(run, get_font('body'), get_font('body'), 16, bold=False)
     return para
 
 
@@ -331,13 +365,12 @@ def create_table(doc, table_data):
             para = cell.paragraphs[0]
             para.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = para.add_run(clean_text)
-            run.font.name = font_name
-            run.font.size = Pt(font_size)
-            run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
             
             # 表头加粗
             if row_idx == 0:
-                run.font.bold = True
+                set_font(run, font_name, font_name, font_size, bold=True)
+            else:
+                set_font(run, font_name, font_name, font_size, bold=False)
             
             # 设置段落格式
             para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
@@ -363,15 +396,15 @@ def create_signature_paragraph(doc, text, sig_type):
     
     para = doc.add_paragraph()
     run = para.add_run(text)
-    run.font.name = font_name
-    run.font.size = Pt(font_size)
-    run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
+    set_font(run, font_name, font_name, font_size, bold=False)
     
     # 设置右对齐
     para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     
     # 设置段落格式
     pf = para.paragraph_format
+    pf.left_indent = Pt(0)
+    pf.right_indent = Pt(0)
     pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
     pf.line_spacing = Pt(LINE_SPACING)
     pf.space_before = Pt(0)
